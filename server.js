@@ -7,11 +7,7 @@ const app = express();
 app.set('trust proxy', true);
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: {
-    origin: ['https://grzlly.github.io', 'http://localhost:3000'],
-    methods: ['GET', 'POST'],
-    credentials: true
-  }
+  cors: { origin: '*' }
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
