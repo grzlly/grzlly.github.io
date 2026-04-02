@@ -49,10 +49,10 @@ public class MentorService extends Service {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationManager nm = getSystemService(NotificationManager.class);
 
-            // Foreground channel — invisible
-            NotificationChannel fg = new NotificationChannel(CH_FG, "Система", NotificationManager.IMPORTANCE_MIN);
+            // Foreground channel — low (so Vivo respects it more)
+            NotificationChannel fg = new NotificationChannel(CH_FG, "Система", NotificationManager.IMPORTANCE_LOW);
             fg.setShowBadge(false);
-            fg.setDescription("Системная служба");
+            fg.setDescription("Фоновая работа приложения");
             nm.createNotificationChannel(fg);
 
             // Hints channel — loud, vibrating for Mi Band
@@ -68,8 +68,9 @@ public class MentorService extends Service {
     private Notification buildFgNotification() {
         return new NotificationCompat.Builder(this, CH_FG)
                 .setSmallIcon(android.R.drawable.stat_notify_sync_noanim)
-                .setContentTitle("")
-                .setPriority(NotificationCompat.PRIORITY_MIN)
+                .setContentTitle("MentorLink работает")
+                .setContentText("Служба активна в фоне")
+                .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setSilent(true)
                 .setOngoing(true)
                 .build();
