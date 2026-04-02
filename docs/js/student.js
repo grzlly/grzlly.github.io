@@ -94,7 +94,13 @@
     shareStarted = true;
 
     localStream = await navigator.mediaDevices.getDisplayMedia({
-      video: { cursor: 'always', width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+      video: {
+        cursor: 'always',
+        displaySurface: 'monitor',
+        width: { ideal: 1920, max: 2560 },
+        height: { ideal: 1080, max: 1440 },
+        frameRate: { ideal: 30, max: 60 }
+      },
       audio: false
     });
 
@@ -117,7 +123,12 @@
     peerConnection = new RTCPeerConnection(iceConfig);
 
     localStream.getTracks().forEach(track => {
-      peerConnection.addTrack(track, localStream);
+      const sender = peerConnection.addTrack(track, localStream);
+      const params = sender.getParameters();
+      if (!params.encodings) params.encodings = [{}];
+      // Force high bitrate (5 Mbps) for maximum text clarity
+      params.encodings[0].maxBitrate = 5000000;
+      sender.setParameters(params).catch(e => console.log('Bitrate tweak not supported', e));
     });
 
     peerConnection.onicecandidate = (event) => {
