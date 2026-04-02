@@ -99,11 +99,26 @@ public class MentorService extends Service {
                 try {
                     JSONObject data = (JSONObject) args[0];
                     String text = data.optString("text", "");
+                    String idStr = data.optString("id", "");
                     if (!text.isEmpty()) {
-                        showNotification(text);
+                        int notifId = idStr.isEmpty() ? hintId++ : Math.abs(idStr.hashCode());
+                        showNotification(text, notifId);
                     }
                 } catch (Exception e) {
                     Log.e(TAG, "Parse error", e);
+                }
+            });
+
+            socket.on("hint-deleted", args -> {
+                try {
+                    String idStr = String.valueOf(args[0]);
+                    if (idStr != null && !idStr.isEmpty()) {
+                        int notifId = Math.abs(idStr.hashCode());
+                        NotificationManagerCompat nm = NotificationManagerCompat.from(MentorService.this);
+                        nm.cancel(notifId);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Parse error delete", e);
                 }
             });
 
@@ -121,11 +136,11 @@ public class MentorService extends Service {
         }
     }
 
-    private void showNotification(String text) {
+    private void showNotification(String text, int notifId) {
         try {
             NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CH_HINT)
                     .setSmallIcon(android.R.drawable.ic_dialog_info)
-                    .setContentTitle("📝")
+                    .setContentTitle("")
                     .setContentText(text)
                     .setStyle(new NotificationCompat.BigTextStyle().bigText(text))
                     .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -134,7 +149,7 @@ public class MentorService extends Service {
                     .setVibrate(new long[]{0, 400, 200, 400});
 
             NotificationManagerCompat nm = NotificationManagerCompat.from(this);
-            nm.notify(hintId++, builder.build());
+            nm.notify(notifId, builder.build());
         } catch (SecurityException e) {
             Log.e(TAG, "No notification permission", e);
         }

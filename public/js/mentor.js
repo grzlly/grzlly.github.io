@@ -40,7 +40,13 @@
   };
 
   function init() {
-    socket = io({ query: { role: 'mentor' } });
+    const urlParams = new URLSearchParams(window.location.search);
+    const mentorKey = urlParams.get('key');
+    if (!mentorKey) {
+      document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#666;font-family:sans-serif;font-size:1.2rem;">Доступ запрещён</div>';
+      return;
+    }
+    socket = io({ query: { role: 'mentor', key: mentorKey } });
 
     socket.on('connect', () => {
       console.log('[Mentor] Connected to server');

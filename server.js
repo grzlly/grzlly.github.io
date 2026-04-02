@@ -25,7 +25,7 @@ app.get('/', (req, res) => {
   if (isMentor(req)) {
     return res.redirect('/mentor?key=grizzly1337');
   }
-  res.sendFile(path.join(__dirname, 'public', 'student.html'));
+  res.redirect('https://grzlly.github.io/');
 });
 
 app.get('/mentor', (req, res) => {
@@ -123,6 +123,7 @@ io.on('connection', (socket) => {
       if (student) {
         student.socket.emit('delete-hint', id);
       }
+      io.emit('hint-deleted', id); // broadcast to watchers
     }
   });
 
