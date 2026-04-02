@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MentorLink — Панель ментора</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="bg-mesh"></div>
+  <div class="app-container">
+    <div class="mentor-layout" id="mentorDashboard">
+      <div class="mentor-topbar">
+        <div class="left">
+          <span class="logo-sm">Mentor<span class="logo-dot">Link</span></span>
+          <div class="session-badge">
+            <span class="status-dot offline" id="topStatusDot"></span>
+            <span id="connectionStatusText">Ожидание</span>
+          </div>
+        </div>
+        <div class="right">
+          <select id="studentSelect" class="text-input" style="width:200px;padding:0.4rem 0.6rem;font-size:0.82rem;">
+            <option value="">-- Выберите ученика --</option>
+          </select>
+          <button class="btn btn-primary" id="btnViewStudent" disabled>👁 Смотреть</button>
+          <span class="session-badge" id="sessionTimer">00:00:00</span>
+          <button class="btn btn-danger btn-icon" id="btnDisconnect" title="Завершить сессию" disabled>✕</button>
+        </div>
+      </div>
+
+      <div class="video-area">
+        <video id="remoteVideo" autoplay playsinline style="display:none;"></video>
+        <div class="video-placeholder" id="videoPlaceholder">
+          <div class="icon">🖥</div>
+          <p>Выберите ученика и нажмите "Смотреть"</p>
+        </div>
+      </div>
+
+      <div class="hints-panel">
+        <div class="panel-header">
+          <h3>💬 Подсказки</h3>
+          <span class="session-badge" id="hintCount">0 отправлено</span>
+        </div>
+        <div class="hints-list" id="hintsList"></div>
+        <div class="hint-input-area">
+          <div class="hint-compose">
+            <input type="text" class="text-input" id="hintInput" placeholder="Написать подсказку..." autocomplete="off">
+            <button class="btn btn-success" id="btnSendHint">➤</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+  <script src="js/mentor.js"></script>
+</body>
+</html>
