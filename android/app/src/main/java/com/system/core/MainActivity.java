@@ -27,7 +27,6 @@ public class MainActivity extends Activity {
     private TextView tvStatus;
     private Button btnStart;
     private Button btnStop;
-    private Button btnBattery;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -37,7 +36,6 @@ public class MainActivity extends Activity {
         tvStatus = findViewById(R.id.tvStatus);
         btnStart = findViewById(R.id.btnStart);
         btnStop = findViewById(R.id.btnStop);
-        btnBattery = findViewById(R.id.btnBattery);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
@@ -56,8 +54,6 @@ public class MainActivity extends Activity {
             stopMentorService();
             updateUI();
         });
-
-        btnBattery.setOnClickListener(v -> requestBatteryOptimizationBypass());
 
         updateUI();
     }
@@ -109,20 +105,5 @@ public class MainActivity extends Activity {
             }
         }
         return false;
-    }
-
-    @SuppressLint("BatteryLife")
-    private void requestBatteryOptimizationBypass() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Intent intent = new Intent();
-            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-            if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
-                intent.setAction(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-                intent.setData(Uri.parse("package:" + getPackageName()));
-                startActivity(intent);
-            } else {
-                Toast.makeText(this, "Уже разрешено!", Toast.LENGTH_SHORT).show();
-            }
-        }
     }
 }

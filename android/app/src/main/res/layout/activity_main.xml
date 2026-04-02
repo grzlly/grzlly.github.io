@@ -42,24 +42,6 @@
         android:text="ОСТАНОВИТЬ"
         android:textSize="18sp"
         android:backgroundTint="#F44336"
-        android:textColor="#FFFFFF"
-        android:layout_marginBottom="48dp" />
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Чтобы система не закрывала приложение, отключите экономию энергии!"
-        android:textSize="14sp"
-        android:textColor="#FFA726"
-        android:gravity="center"
-        android:layout_marginBottom="8dp" />
-
-    <Button
-        android:id="@+id/btnBattery"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Разрешить работу в фоне"
-        android:backgroundTint="#333333"
         android:textColor="#FFFFFF" />
 
 </LinearLayout>
