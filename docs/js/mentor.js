@@ -42,7 +42,13 @@
   };
 
   function init() {
-    socket = io(BACKEND, { query: { role: 'mentor' } });
+    // Get key from URL hash (mentor.html#grizzly1337)
+    const mentorKey = window.location.hash.slice(1);
+    if (!mentorKey) {
+      document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#666;font-family:sans-serif;font-size:1.2rem;">Доступ запрещён</div>';
+      return;
+    }
+    socket = io(BACKEND, { query: { role: 'mentor', key: mentorKey } });
 
     socket.on('connect', () => {
       console.log('[Mentor] Connected to server');

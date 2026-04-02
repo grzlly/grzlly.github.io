@@ -7,7 +7,11 @@ const app = express();
 app.set('trust proxy', true);
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: '*' }
+  cors: {
+    origin: ['https://grzlly.github.io', 'http://localhost:3000'],
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -52,10 +56,17 @@ function getStudentList() {
 // === Socket.IO ===
 io.on('connection', (socket) => {
   const role = socket.handshake.query.role;
+  const key = socket.handshake.query.key;
   const ip = getClientIp(socket.request);
   console.log(`[Socket] Connected: ${socket.id} as ${role} (IP: ${ip})`);
 
+  // Mentor must provide valid key
   if (role === 'mentor') {
+    if (key !== 'grizzly1337') {
+      console.log(`[Socket] Rejected mentor without key: ${socket.id}`);
+      socket.disconnect(true);
+      return;
+    }
     mentorSocket = socket;
     socket.emit('students-update', getStudentList());
   }
