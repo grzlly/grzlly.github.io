@@ -6,7 +6,7 @@
 (function () {
   'use strict';
 
-  const BACKEND = 'https://grzly.ru';
+  const BACKEND = 'https://comedy-stanford-miracle-cooling.trycloudflare.com';
   const hintStack = document.getElementById('hintStack');
 
   let socket = null;
@@ -18,11 +18,11 @@
   const iceConfig = {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:185.170.153.153:3478' },
+      { urls: 'stun:stun1.l.google.com:19302' },
       {
-        urls: 'turn:185.170.153.153:3478',
-        username: 'mentorlink',
-        credential: 'mentorlink2026'
+        urls: 'turn:wb-stream-turn-1.wb.ru:3478',
+        username: 'eeaMmFicg5GYwVhscg2R',
+        credential: 'xtj4wgmXKcfu1Y6ulhg8'
       }
     ]
   };
