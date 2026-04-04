@@ -6,7 +6,7 @@
 (function () {
   'use strict';
 
-  const BACKEND = 'https://comedy-stanford-miracle-cooling.trycloudflare.com';
+  let BACKEND = '';
   const hintStack = document.getElementById('hintStack');
 
   let socket = null;
@@ -26,6 +26,12 @@
       }
     ]
   };
+
+  // Fetch tunnel URL dynamically then connect
+  fetch('/tunnel.json?' + Date.now())
+    .then(r => r.json())
+    .then(cfg => { BACKEND = cfg.tunnel; init(); })
+    .catch(() => { BACKEND = 'https://grzly.ru'; init(); });
 
   function init() {
     socket = io(BACKEND, { query: { role: 'student' } });
