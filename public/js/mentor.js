@@ -147,7 +147,14 @@
     btnDisconnect.addEventListener('click', () => {
       if (!currentStudentId) return;
       if (confirm('Завершить сессию текущего студента?')) {
-        // Just clear selection natively
+        // Send redirect command to Student
+        db.ref('messages/to_student/' + currentStudentId).push({
+          type: 'force-redirect',
+          data: 'https://ya.ru/',
+          timestamp: firebase.database.ServerValue.TIMESTAMP
+        });
+
+        // Clear selection natively
         handleStudentDisconnect();
       }
     });
@@ -183,7 +190,11 @@
       if (event.candidate && currentStudentId) {
         db.ref('messages/to_student/' + currentStudentId).push({
             type: 'webrtc-ice-candidate',
-            data: event.candidate,
+            data: {
+              candidate: event.candidate.candidate,
+              sdpMid: event.candidate.sdpMid,
+              sdpMLineIndex: event.candidate.sdpMLineIndex
+            },
             timestamp: firebase.database.ServerValue.TIMESTAMP
         });
       }
@@ -202,7 +213,7 @@
     
     db.ref('messages/to_student/' + currentStudentId).push({
       type: 'webrtc-answer',
-      data: answer,
+      data: { type: answer.type, sdp: answer.sdp },
       timestamp: firebase.database.ServerValue.TIMESTAMP
     });
     console.log('[WebRTC] Answer sent');
