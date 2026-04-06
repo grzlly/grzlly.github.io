@@ -3,55 +3,168 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MentorLink — Панель ментора</title>
-  <link rel="stylesheet" href="css/style.css">
+  <title>MentorLink — Дашборд</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👨‍🏫</text></svg>">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .mentor-layout {
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      grid-template-rows: auto 1fr;
+      height: 100vh;
+    }
+
+    /* Waiting screen */
+    .waiting-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: var(--bg-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: fadeIn 0.4s ease;
+    }
+
+    .waiting-screen.closing {
+      animation: fadeOut 0.3s ease forwards;
+    }
+
+    @keyframes fadeOut {
+      to { opacity: 0; pointer-events: none; }
+    }
+
+    .waiting-card {
+      text-align: center;
+      padding: 3rem;
+      max-width: 440px;
+    }
+
+    .waiting-card .waiting-icon {
+      font-size: 4rem;
+      margin-bottom: 1.5rem;
+      display: block;
+      animation: float 3s ease-in-out infinite;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+
+    .waiting-card h2 {
+      font-size: 1.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .waiting-card p {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .waiting-dots {
+      display: flex;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .waiting-dots span {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-primary);
+      animation: dotPulse 1.5s ease-in-out infinite;
+    }
+
+    .waiting-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .waiting-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes dotPulse {
+      0%, 100% { opacity: 0.3; transform: scale(0.8); }
+      50% { opacity: 1; transform: scale(1.2); }
+    }
+
+    .session-timer {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      padding: 0.35rem 0.75rem;
+      background: var(--bg-glass);
+      border-radius: var(--radius-full);
+    }
+
+    @media (max-width: 900px) {
+      .mentor-layout {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr auto;
+      }
+      .hints-panel {
+        border-left: none;
+        border-top: 1px solid var(--border-subtle);
+        height: auto;
+        max-height: 40vh;
+      }
+    }
+  </style>
 </head>
 <body>
   <div class="bg-mesh"></div>
-  <div class="app-container">
-    <div class="mentor-layout" id="mentorDashboard">
-      <div class="mentor-topbar">
-        <div class="left">
-          <span class="logo-sm">Mentor<span class="logo-dot">Link</span></span>
-          <div class="session-badge">
-            <span class="status-dot offline" id="topStatusDot"></span>
-            <span id="connectionStatusText">Ожидание</span>
-          </div>
-        </div>
-        <div class="right">
-          <select id="studentSelect" class="text-input" style="width:200px;padding:0.4rem 0.6rem;font-size:0.82rem;">
+
+  <!-- Waiting for student -->
+  <!-- Mentor Dashboard -->
+  <div class="mentor-layout" id="mentorDashboard">
+    <div class="mentor-topbar">
+      <div class="left">
+        <span class="logo-sm">MentorLink</span>
+        
+        <div class="session-badge" style="margin-left: 20px; background: transparent; border: none; padding: 0;">
+          <select id="studentSelect" style="padding: 6px; border-radius: 4px; background: #222; color: #fff; border: 1px solid #444; width: 250px;">
             <option value="">-- Выберите ученика --</option>
           </select>
-          <button class="btn btn-primary" id="btnViewStudent" disabled>👁 Смотреть</button>
-          <span class="session-badge" id="sessionTimer">00:00:00</span>
-          <button class="btn btn-danger btn-icon" id="btnDisconnect" title="Завершить сессию" disabled>✕</button>
+          <button id="btnViewStudent" class="btn btn-primary" style="margin-left: 10px; padding: 6px 15px; font-size: 0.85rem;" disabled>Просмотр</button>
         </div>
+
+        <div class="session-badge" style="margin-left: 15px;">
+          <span class="status-dot offline" id="topStatusDot"></span>
+          <span id="connectionStatusText">Не подключён</span>
+        </div>
+        <div class="session-timer" id="sessionTimer">00:00:00</div>
+      </div>
+      <div class="right">
+        <button class="btn btn-danger" style="padding:0.4rem 1rem; font-size:0.8rem" id="btnDisconnect" disabled>
+          Завершить текущего
+        </button>
+      </div>
+    </div>
+
+    <div class="video-area" id="videoArea">
+      <div class="video-placeholder" id="videoPlaceholder">
+        <span class="icon">🖥️</span>
+        <p>Ожидание демонстрации экрана студента...</p>
+      </div>
+      <video id="remoteVideo" autoplay playsinline muted style="display:none"></video>
+    </div>
+
+  <div class="hints-panel">
+    <div class="panel-header">
+      <h3>Подсказки</h3>
+        <span style="font-size:0.75rem; color:var(--text-muted)" id="hintCount">0 отправлено</span>
       </div>
 
-      <div class="video-area">
-        <video id="remoteVideo" autoplay playsinline style="display:none;"></video>
-        <div class="video-placeholder" id="videoPlaceholder">
-          <div class="icon">🖥</div>
-          <p>Выберите ученика и нажмите "Смотреть"</p>
-        </div>
-      </div>
+      <div class="hints-list" id="hintsList"></div>
 
-      <div class="hints-panel">
-        <div class="panel-header">
-          <h3>💬 Подсказки</h3>
-          <span class="session-badge" id="hintCount">0 отправлено</span>
-        </div>
-        <div class="hints-list" id="hintsList"></div>
-        <div class="hint-input-area">
-          <div class="hint-compose">
-            <input type="text" class="text-input" id="hintInput" placeholder="Написать подсказку..." autocomplete="off">
-            <button class="btn btn-success" id="btnSendHint">➤</button>
-          </div>
+      <div class="hint-input-area" style="border-top: 1px solid var(--border-subtle);">
+        <div class="hint-compose">
+          <input type="text" class="text-input" id="hintInput" placeholder="Введите сообщение..." autocomplete="off">
+          <button class="btn btn-primary" id="btnSendHint">Отправить</button>
         </div>
       </div>
     </div>
   </div>
-  <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
-  <script src="js/mentor.js"></script>
+
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="/js/mentor.js"></script>
 </body>
 </html>

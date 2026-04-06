@@ -119,6 +119,14 @@
           await peerConnection.addIceCandidate(new RTCIceCandidate(msg.data));
         }
       }
+      else if (msg.type === 'share-error') {
+        connectionStatusText.textContent = 'Ошибка: ' + msg.data;
+        topStatusDot.className = 'status-dot offline';
+        if (remoteVideo.srcObject) remoteVideo.srcObject = null;
+        remoteVideo.style.display = 'none';
+        videoPlaceholder.style.display = 'flex';
+        btnDisconnect.disabled = true;
+      }
       else if (msg.type === 'hint-acknowledged') {
         showToast('Студент прочитал подсказку ✓', 'success');
         const bubbles = hintsList.querySelectorAll('.hint-bubble.sent:not(.acknowledged)');
