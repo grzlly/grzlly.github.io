@@ -1,12 +1,10 @@
 /**
- * MentorLink — Mentor Client (simplified)
- * No session codes. Auto-connects when student is online.
+ * MentorLink — Mentor Client (Firebase version)
  */
 
 (function () {
   'use strict';
 
-  const mentorDashboard = document.getElementById('mentorDashboard');
   const videoPlaceholder = document.getElementById('videoPlaceholder');
   const remoteVideo = document.getElementById('remoteVideo');
   const topStatusDot = document.getElementById('topStatusDot');
@@ -20,7 +18,6 @@
   const btnViewStudent = document.getElementById('btnViewStudent');
   const connectionStatusText = document.getElementById('connectionStatusText');
 
-  let socket = null;
   let peerConnection = null;
   let sentHintsCount = 0;
   let timerInterval = null;
@@ -39,29 +36,38 @@
     ]
   };
 
+  // Firebase Init
+  const firebaseConfig = {
+    apiKey: "AIzaSyBmssIL_Njtw_YSKu0xqYqCjKT-9FZTx28",
+    projectId: "mentorlink-school",
+    databaseURL: "https://mentorlink-school-default-rtdb.europe-west1.firebasedatabase.app",
+    authDomain: "mentorlink-school.firebaseapp.com",
+    storageBucket: "mentorlink-school.firebasestorage.app",
+    messagingSenderId: "566701278681",
+    appId: "1:566701278681:web:f7be1fa2d1eab3d9f445c8",
+  };
+  
+  if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
   function init() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const mentorKey = urlParams.get('key');
-    if (!mentorKey) {
-      document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#666;font-family:sans-serif;font-size:1.2rem;">Доступ запрещён</div>';
-      return;
-    }
-    socket = io({ query: { role: 'mentor', key: mentorKey } });
+    console.log('[Mentor] Connected to Firebase UI');
 
-    socket.on('connect', () => {
-      console.log('[Mentor] Connected to server');
-    });
-
-    socket.on('students-update', (list) => {
+    // Subscribe to online students
+    db.ref('students').on('value', (snapshot) => {
+      const list = snapshot.val() || {};
       const currentSelected = studentSelect.value;
       studentSelect.innerHTML = '<option value="">-- Выберите ученика --</option>';
       let foundCurrent = false;
 
-      list.forEach(s => {
+      Object.keys(list).forEach(sId => {
+        const s = list[sId];
+        if (!s.isOnline) return;
+
         const opt = document.createElement('option');
-        opt.value = s.id;
-        opt.textContent = `Ученик (IP: ${s.ip})`;
-        if (s.id === currentSelected) {
+        opt.value = sId;
+        opt.textContent = `Ученик (${sId})`;
+        if (sId === currentSelected) {
           opt.selected = true;
           foundCurrent = true;
         }
@@ -90,36 +96,40 @@
       topStatusDot.className = 'status-dot offline';
       connectionStatusText.textContent = 'Запрос подключения...';
       
-      socket.emit('mentor-request-view', currentStudentId);
+      // Request view
+      db.ref('messages/to_student/' + currentStudentId).push({
+          type: 'mentor-request-view',
+          timestamp: firebase.database.ServerValue.TIMESTAMP
+      });
     });
 
-    socket.on('webrtc-offer', async ({ offer, studentId }) => {
-      if (studentId !== currentStudentId) return; // ignore offers from others
-      console.log('[WebRTC] Received offer from', studentId);
-      await handleOffer(offer);
-    });
+    // Listen for WebRTC signals & acks from Student
+    db.ref('messages/to_mentor').on('child_added', async (snapshot) => {
+      const msg = snapshot.val();
+      snapshot.ref.remove();
 
-    socket.on('webrtc-ice-candidate', async ({ candidate, studentId }) => {
-      if (studentId !== currentStudentId) return;
-      if (peerConnection) {
-        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      if (msg.studentId !== currentStudentId) return; // ignore other students
+
+      if (msg.type === 'webrtc-offer') {
+        console.log('[WebRTC] Received offer from', msg.studentId);
+        await handleOffer(msg.data);
+      } 
+      else if (msg.type === 'webrtc-ice-candidate') {
+        if (peerConnection) {
+          await peerConnection.addIceCandidate(new RTCIceCandidate(msg.data));
+        }
       }
-    });
-
-    socket.on('hint-sent', (hint) => {
-      addHintToList(hint);
-    });
-
-    socket.on('hint-acknowledged', () => {
-      showToast('Студент прочитал подсказку ✓', 'success');
-      const bubbles = hintsList.querySelectorAll('.hint-bubble.sent:not(.acknowledged)');
-      if (bubbles.length > 0) {
-        const last = bubbles[bubbles.length - 1];
-        last.classList.add('acknowledged');
-        const s = document.createElement('div');
-        s.className = 'hint-status';
-        s.textContent = '✓ Прочитано';
-        last.appendChild(s);
+      else if (msg.type === 'hint-acknowledged') {
+        showToast('Студент прочитал подсказку ✓', 'success');
+        const bubbles = hintsList.querySelectorAll('.hint-bubble.sent:not(.acknowledged)');
+        if (bubbles.length > 0) {
+          const last = bubbles[bubbles.length - 1];
+          last.classList.add('acknowledged');
+          const s = document.createElement('div');
+          s.className = 'hint-status';
+          s.textContent = '✓ Прочитано';
+          last.appendChild(s);
+        }
       }
     });
 
@@ -129,14 +139,14 @@
     btnDisconnect.addEventListener('click', () => {
       if (!currentStudentId) return;
       if (confirm('Завершить сессию текущего студента?')) {
-        socket.emit('end-session', currentStudentId);
-        setTimeout(() => location.reload(), 300);
+        // Just clear selection natively
+        handleStudentDisconnect();
       }
     });
   }
 
   function handleStudentDisconnect() {
-    console.log('[Mentor] Current student is offline');
+    console.log('[Mentor] Current student is offline or disconnected');
     topStatusDot.className = 'status-dot offline';
     connectionStatusText.textContent = 'Отключён';
     btnDisconnect.disabled = true;
@@ -153,32 +163,25 @@
 
     peerConnection.ontrack = (event) => {
       console.log('[WebRTC] Remote track received!');
-      console.log('[WebRTC] Track kind:', event.track.kind, 'readyState:', event.track.readyState);
-      console.log('[WebRTC] Streams:', event.streams.length);
       const stream = event.streams[0];
       remoteVideo.srcObject = stream;
       remoteVideo.style.display = 'block';
       videoPlaceholder.style.display = 'none';
       topStatusDot.className = 'status-dot online';
-      remoteVideo.play().then(() => {
-        console.log('[WebRTC] Video playing!');
-      }).catch(e => {
-        console.error('[WebRTC] Play failed:', e);
-      });
+      remoteVideo.play().catch(e => console.error('[WebRTC] Play failed:', e));
     };
 
     peerConnection.onicecandidate = (event) => {
       if (event.candidate && currentStudentId) {
-        socket.emit('webrtc-ice-candidate', { candidate: event.candidate, target: currentStudentId });
+        db.ref('messages/to_student/' + currentStudentId).push({
+            type: 'webrtc-ice-candidate',
+            data: event.candidate,
+            timestamp: firebase.database.ServerValue.TIMESTAMP
+        });
       }
     };
 
-    peerConnection.oniceconnectionstatechange = () => {
-      console.log('[WebRTC] ICE state:', peerConnection.iceConnectionState);
-    };
-
     peerConnection.onconnectionstatechange = () => {
-      console.log('[WebRTC] Connection state:', peerConnection.connectionState);
       if (peerConnection.connectionState === 'connected') {
         connectionStatusText.textContent = 'Трансляция активна';
         if (!timerInterval) startTimer();
@@ -188,7 +191,12 @@
     await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
-    socket.emit('webrtc-answer', { answer, target: currentStudentId });
+    
+    db.ref('messages/to_student/' + currentStudentId).push({
+      type: 'webrtc-answer',
+      data: answer,
+      timestamp: firebase.database.ServerValue.TIMESTAMP
+    });
     console.log('[WebRTC] Answer sent');
   }
 
@@ -197,7 +205,17 @@
     if (!currentStudentId) return;
     const text = hintInput.value.trim();
     if (!text) return;
-    socket.emit('send-hint', { text, target: currentStudentId });
+    
+    const hint = { text: text, timestamp: Date.now(), id: 'hint-' + Date.now() };
+
+    db.ref('messages/to_student/' + currentStudentId).push({
+      type: 'new-hint',
+      data: hint,
+      timestamp: firebase.database.ServerValue.TIMESTAMP
+    });
+
+    addHintToList(hint);
+
     hintInput.value = '';
     hintInput.focus();
   }
@@ -220,7 +238,11 @@
     `;
 
     bubble.querySelector('.hint-delete-btn').addEventListener('click', () => {
-      socket.emit('delete-hint', { id: hint.id, target: currentStudentId });
+      db.ref('messages/to_student/' + currentStudentId).push({
+        type: 'delete-hint',
+        data: hint.id,
+        timestamp: firebase.database.ServerValue.TIMESTAMP
+      });
       bubble.style.animation = 'fadeOut 0.25s ease forwards';
       setTimeout(() => bubble.remove(), 250);
     });

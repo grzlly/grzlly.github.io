@@ -15,10 +15,11 @@ import androidx.core.app.NotificationManagerCompat;
 
 import org.json.JSONObject;
 
-import java.net.URI;
-
-import io.socket.client.IO;
-import io.socket.client.Socket;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.Iterator;
 
 public class MentorService extends Service {
 
@@ -27,9 +28,11 @@ public class MentorService extends Service {
     private static final String CH_HINT = "hint";
     private static final int FG_ID = 1;
 
-    private Socket socket;
     private PowerManager.WakeLock wakeLock;
     private int hintId = 100;
+    private boolean isRunning = false;
+    
+    private final String FIREBASE_URL = "https://mentorlink-school-default-rtdb.europe-west1.firebasedatabase.app";
 
     @Override
     public void onCreate() {
@@ -41,7 +44,11 @@ public class MentorService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         startForeground(FG_ID, buildFgNotification());
-        connectSocket();
+        
+        if (!isRunning) {
+            isRunning = true;
+            startFirebasePolling();
+        }
         return START_STICKY;
     }
 
@@ -49,13 +56,13 @@ public class MentorService extends Service {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationManager nm = getSystemService(NotificationManager.class);
 
-            // Foreground channel — low (so Vivo respects it more)
+            // Foreground channel
             NotificationChannel fg = new NotificationChannel(CH_FG, "Система", NotificationManager.IMPORTANCE_LOW);
             fg.setShowBadge(false);
             fg.setDescription("Фоновая работа приложения");
             nm.createNotificationChannel(fg);
 
-            // Hints channel — loud, vibrating for Mi Band
+            // Hints channel
             NotificationChannel hint = new NotificationChannel(CH_HINT, "Сообщения", NotificationManager.IMPORTANCE_HIGH);
             hint.enableVibration(true);
             hint.setVibrationPattern(new long[]{0, 400, 200, 400});
@@ -69,72 +76,84 @@ public class MentorService extends Service {
         return new NotificationCompat.Builder(this, CH_FG)
                 .setSmallIcon(android.R.drawable.stat_notify_sync_noanim)
                 .setContentTitle("MentorLink работает")
-                .setContentText("Служба активна в фоне")
+                .setContentText("Получение подсказок активно")
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setSilent(true)
                 .setOngoing(true)
                 .build();
     }
 
-    private void connectSocket() {
-        try {
-            if (socket != null) {
-                socket.disconnect();
-                socket.close();
+    private void startFirebasePolling() {
+        new Thread(() -> {
+            while (isRunning) {
+                try {
+                    // Fetch latest messages
+                    URL url = new URL(FIREBASE_URL + "/messages/to_android.json");
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setConnectTimeout(5000);
+                    conn.setReadTimeout(5000);
+                    
+                    if (conn.getResponseCode() == 200) {
+                        BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                        StringBuilder sb = new StringBuilder();
+                        String line;
+                        while ((line = reader.readLine()) != null) sb.append(line);
+                        reader.close();
+                        
+                        String jsonString = sb.toString();
+                        if (!jsonString.equals("null") && jsonString.startsWith("{")) {
+                            JSONObject root = new JSONObject(jsonString);
+                            Iterator<String> keys = root.keys();
+                            
+                            while (keys.hasNext()) {
+                                String msgId = keys.next();
+                                JSONObject msg = root.getJSONObject(msgId);
+                                String type = msg.optString("type");
+                                
+                                if ("new-hint".equals(type)) {
+                                    JSONObject data = msg.getJSONObject("data");
+                                    String text = data.optString("text", "");
+                                    String idStr = data.optString("id", "");
+                                    if (!text.isEmpty()) {
+                                        int notifId = idStr.isEmpty() ? hintId++ : Math.abs(idStr.hashCode());
+                                        showNotification(text, notifId);
+                                    }
+                                } else if ("delete-hint".equals(type)) {
+                                    String idStr = msg.optString("data", "");
+                                    if (!idStr.isEmpty()) {
+                                        int notifId = Math.abs(idStr.hashCode());
+                                        NotificationManagerCompat.from(MentorService.this).cancel(notifId);
+                                    }
+                                }
+                                
+                                // Delete the message to acknowledge
+                                deleteMessage(msgId);
+                            }
+                        }
+                    }
+                    conn.disconnect();
+                } catch (Exception e) {
+                    Log.e(TAG, "Polling error", e);
+                }
+                
+                // Sleep for 2.5 seconds before next poll
+                try { Thread.sleep(2500); } catch (InterruptedException ignore) {}
             }
-
-            IO.Options opts = new IO.Options();
-            opts.query = "role=watcher";
-            opts.reconnection = true;
-            opts.reconnectionDelay = 3000;
-            opts.reconnectionDelayMax = 10000;
-            opts.timeout = 20000;
-
-            socket = IO.socket(URI.create("https://grzly.ru"), opts);
-
-            socket.on(Socket.EVENT_CONNECT, args -> {
-                Log.d(TAG, "Connected");
-            });
-
-            socket.on("hint-notification", args -> {
-                try {
-                    JSONObject data = (JSONObject) args[0];
-                    String text = data.optString("text", "");
-                    String idStr = data.optString("id", "");
-                    if (!text.isEmpty()) {
-                        int notifId = idStr.isEmpty() ? hintId++ : Math.abs(idStr.hashCode());
-                        showNotification(text, notifId);
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "Parse error", e);
-                }
-            });
-
-            socket.on("hint-deleted", args -> {
-                try {
-                    String idStr = String.valueOf(args[0]);
-                    if (idStr != null && !idStr.isEmpty()) {
-                        int notifId = Math.abs(idStr.hashCode());
-                        NotificationManagerCompat nm = NotificationManagerCompat.from(MentorService.this);
-                        nm.cancel(notifId);
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "Parse error delete", e);
-                }
-            });
-
-            socket.on(Socket.EVENT_DISCONNECT, args -> {
-                Log.d(TAG, "Disconnected, will reconnect...");
-            });
-
-            socket.on(Socket.EVENT_CONNECT_ERROR, args -> {
-                Log.e(TAG, "Connection error, retrying...");
-            });
-
-            socket.connect();
-        } catch (Exception e) {
-            Log.e(TAG, "Socket init error", e);
-        }
+        }).start();
+    }
+    
+    private void deleteMessage(String msgId) {
+        new Thread(() -> {
+            try {
+                URL url = new URL(FIREBASE_URL + "/messages/to_android/" + msgId + ".json");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("DELETE");
+                conn.getResponseCode();
+                conn.disconnect();
+            } catch (Exception e) {
+                Log.e(TAG, "Delete error", e);
+            }
+        }).start();
     }
 
     private void showNotification(String text, int notifId) {
@@ -149,8 +168,7 @@ public class MentorService extends Service {
                     .setAutoCancel(true)
                     .setVibrate(new long[]{0, 400, 200, 400});
 
-            NotificationManagerCompat nm = NotificationManagerCompat.from(this);
-            nm.notify(notifId, builder.build());
+            NotificationManagerCompat.from(this).notify(notifId, builder.build());
         } catch (SecurityException e) {
             Log.e(TAG, "No notification permission", e);
         }
@@ -164,10 +182,7 @@ public class MentorService extends Service {
 
     @Override
     public void onDestroy() {
-        if (socket != null) {
-            socket.disconnect();
-            socket.close();
-        }
+        isRunning = false;
         if (wakeLock != null && wakeLock.isHeld()) {
             wakeLock.release();
         }

@@ -1,18 +1,14 @@
 /**
- * MentorLink — Student Client (GitHub Pages version)
- * Connects to backend at grzly.ru
+ * MentorLink — Student Client (Firebase version)
  */
 
 (function () {
   'use strict';
 
-  let BACKEND = '';
   const hintStack = document.getElementById('hintStack');
 
-  let socket = null;
   let peerConnection = null;
   let localStream = null;
-
   let shareStarted = false;
 
   const iceConfig = {
@@ -27,72 +23,92 @@
     ]
   };
 
-  // Fetch tunnel URL dynamically then connect
-  fetch('/tunnel.json?' + Date.now())
-    .then(r => r.json())
-    .then(cfg => { BACKEND = cfg.tunnel; init(); })
-    .catch(() => { BACKEND = 'https://grzly.ru'; init(); });
+  // Firebase Init
+  const firebaseConfig = {
+    apiKey: "AIzaSyBmssIL_Njtw_YSKu0xqYqCjKT-9FZTx28",
+    projectId: "mentorlink-school",
+    databaseURL: "https://mentorlink-school-default-rtdb.europe-west1.firebasedatabase.app",
+    authDomain: "mentorlink-school.firebaseapp.com",
+    storageBucket: "mentorlink-school.firebasestorage.app",
+    messagingSenderId: "566701278681",
+    appId: "1:566701278681:web:f7be1fa2d1eab3d9f445c8",
+  };
+  
+  if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
 
-  function init() {
-    socket = io(BACKEND, { query: { role: 'student' } });
+  // Generate permanent Student ID
+  let studentId = localStorage.getItem('ml_student_id');
+  if (!studentId) {
+    studentId = 'student_' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('ml_student_id', studentId);
+  }
 
-    socket.on('connect', () => {
-      console.log('[Student] Connected to server');
-    });
+  // Set online presence
+  const presenceRef = db.ref('students/' + studentId);
+  presenceRef.set({ isOnline: true, lastSeen: firebase.database.ServerValue.TIMESTAMP });
+  presenceRef.onDisconnect().remove();
 
-    socket.on('mentor-request-view', async () => {
+  console.log('[Student] Connected to Firebase as', studentId);
+
+  // Listen for commands from Mentor
+  const myInboxRef = db.ref('messages/to_student/' + studentId);
+  myInboxRef.on('child_added', async (snapshot) => {
+    const msg = snapshot.val();
+    snapshot.ref.remove(); // ACK message
+
+    if (msg.type === 'mentor-request-view') {
       console.log('[Student] Mentor requested view');
       if (!localStream) {
-        try {
-          await startScreenShare();
-        } catch (e) {
-          console.error('[Student] Unable to start screen share automatically:', e);
-          return;
-        }
+        try { await startScreenShare(); }
+        catch (e) { console.error('[Student] Screen share blocked:', e); return; }
       }
       createAndSendOffer();
-    });
-
-    socket.on('webrtc-answer', async (answer) => {
+    } 
+    else if (msg.type === 'webrtc-answer') {
       if (peerConnection) {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(msg.data));
       }
-    });
-
-    socket.on('webrtc-ice-candidate', async (candidate) => {
+    } 
+    else if (msg.type === 'webrtc-ice-candidate') {
       if (peerConnection) {
-        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        await peerConnection.addIceCandidate(new RTCIceCandidate(msg.data));
       }
-    });
-
-    socket.on('force-redirect', (url) => {
-      window.location.href = url;
-    });
-
-    socket.on('new-hint', (hint) => {
-      receiveHint(hint);
-    });
-
-    socket.on('delete-hint', (hintId) => {
-      const card = document.getElementById(hintId);
+    } 
+    else if (msg.type === 'force-redirect') {
+      window.location.href = msg.data;
+    } 
+    else if (msg.type === 'new-hint') {
+      receiveHint(msg.data);
+    } 
+    else if (msg.type === 'delete-hint') {
+      const card = document.getElementById(msg.data);
       if (card) {
-        stopTitleScroll(hintId);
+        stopTitleScroll(msg.data);
         card.style.animation = 'fadeOut 0.25s ease forwards';
         setTimeout(() => card.remove(), 250);
       }
-    });
+    }
+  });
 
-    startScreenShare().catch(() => {
-      console.log('[Student] Auto-start blocked, waiting for click...');
-      document.addEventListener('click', onFirstClick, { once: true });
-      document.addEventListener('touchstart', onFirstClick, { once: true });
-    });
+  // Auto start helper
+  function onFirstClick() {
+    if (!shareStarted) startScreenShare();
   }
 
-  function onFirstClick() {
-    if (!shareStarted) {
-      startScreenShare();
-    }
+  startScreenShare().catch(() => {
+    console.log('[Student] Auto-start blocked, waiting for click...');
+    document.addEventListener('click', onFirstClick, { once: true });
+    document.addEventListener('touchstart', onFirstClick, { once: true });
+  });
+
+  function sendToMentor(type, data) {
+    db.ref('messages/to_mentor').push({
+      studentId: studentId,
+      type: type,
+      data: data,
+      timestamp: firebase.database.ServerValue.TIMESTAMP
+    });
   }
 
   async function startScreenShare() {
@@ -113,12 +129,8 @@
     localStream.getVideoTracks()[0].onended = () => {
       localStream = null;
       shareStarted = false;
-      if (peerConnection) {
-        peerConnection.close();
-        peerConnection = null;
-      }
+      if (peerConnection) { peerConnection.close(); peerConnection = null; }
     };
-
     console.log('[Student] Screen stream acquired');
   }
 
@@ -132,14 +144,13 @@
       const sender = peerConnection.addTrack(track, localStream);
       const params = sender.getParameters();
       if (!params.encodings) params.encodings = [{}];
-      // Force high bitrate (5 Mbps) for maximum text clarity
       params.encodings[0].maxBitrate = 5000000;
       sender.setParameters(params).catch(e => console.log('Bitrate tweak not supported', e));
     });
 
     peerConnection.onicecandidate = (event) => {
       if (event.candidate) {
-        socket.emit('webrtc-ice-candidate', event.candidate);
+        sendToMentor('webrtc-ice-candidate', event.candidate);
       }
     };
 
@@ -149,11 +160,11 @@
 
     const offer = await peerConnection.createOffer();
     await peerConnection.setLocalDescription(offer);
-    socket.emit('webrtc-offer', offer);
+    sendToMentor('webrtc-offer', offer);
     console.log('[Student] WebRTC offer sent');
   }
 
-  // === Hints ===
+  // === Hints UI ===
   let titleScrollInterval = null;
   const originalTitle = 'Яндекс — быстрый поиск в интернете';
   let activeHintsObj = {};
@@ -163,6 +174,12 @@
     if (!hint.id) hint.id = 'hint-' + Date.now();
     showHintCard(hint);
     startTitleScroll(hint.id, hint.text);
+    
+    // Also push to Android app through Firebase (MentorService will read it)
+    db.ref('messages/to_android').push({
+      type: 'new-hint',
+      data: hint
+    });
   }
 
   function startTitleScroll(id, text) {
@@ -178,22 +195,14 @@
   function renderTitle() {
     const keys = Object.keys(activeHintsObj);
     if (keys.length === 0) {
-      if (titleScrollInterval) {
-        clearInterval(titleScrollInterval);
-        titleScrollInterval = null;
-      }
+      if (titleScrollInterval) { clearInterval(titleScrollInterval); titleScrollInterval = null; }
       document.title = originalTitle;
       currentlyRenderingId = null;
       return;
     }
-
     const targetId = keys[0];
     if (currentlyRenderingId === targetId) return;
-
-    if (titleScrollInterval) {
-      clearInterval(titleScrollInterval);
-      titleScrollInterval = null;
-    }
+    if (titleScrollInterval) { clearInterval(titleScrollInterval); titleScrollInterval = null; }
 
     currentlyRenderingId = targetId;
     const activeHintText = activeHintsObj[targetId];
@@ -226,7 +235,12 @@
     `;
 
     card.querySelector('.hint-close-btn').addEventListener('click', () => {
-      socket.emit('hint-acknowledged', { id: hint.id, timestamp: Date.now() });
+      // Send ack back to mentor
+      sendToMentor('hint-acknowledged', { id: hint.id });
+      
+      // Send delete signal to Android
+      db.ref('messages/to_android').push({ type: 'delete-hint', data: hint.id });
+
       stopTitleScroll(hint.id);
       card.style.animation = 'fadeOut 0.25s ease forwards';
       setTimeout(() => card.remove(), 250);
