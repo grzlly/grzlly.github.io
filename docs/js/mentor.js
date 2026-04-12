@@ -302,44 +302,58 @@
     if (!peerConnection) return;
     try {
       const stats = await peerConnection.getStats();
+      let activePairId = null;
       let candidateType = 'unknown';
       let relayServer = '';
       let protocol = '';
 
+      // Find active candidate pair via transport
       stats.forEach(report => {
-        if (report.type === 'candidate-pair' && report.state === 'succeeded') {
-          const localId = report.localCandidateId;
-          const remoteId = report.remoteCandidateId;
-
-          stats.forEach(r => {
-            if (r.id === localId) {
-              candidateType = r.candidateType || candidateType;
-              protocol = r.protocol || '';
-              if (r.relayProtocol) protocol = r.relayProtocol;
-              if (r.url) relayServer = r.url;
-            }
-          });
+        if (report.type === 'transport' && report.selectedCandidatePairId) {
+          activePairId = report.selectedCandidatePairId;
         }
       });
 
+      // Fallback: find succeeded/in-use candidate pair
+      if (!activePairId) {
+        stats.forEach(report => {
+          if (report.type === 'candidate-pair' && (report.state === 'succeeded' || report.nominated)) {
+            activePairId = report.id;
+          }
+        });
+      }
+
+      if (activePairId) {
+        const pair = stats.get(activePairId);
+        if (pair && pair.localCandidateId) {
+          const local = stats.get(pair.localCandidateId);
+          if (local) {
+            candidateType = local.candidateType || 'unknown';
+            protocol = local.protocol || '';
+            if (local.relayProtocol) protocol = local.relayProtocol;
+            if (local.url) relayServer = local.url;
+          }
+        }
+      }
+
       let label = '';
       if (candidateType === 'relay') {
-        // Extract server name from TURN url
         const server = relayServer.replace(/^turns?:/, '').split(':')[0].split('?')[0];
-        label = '🔄 TURN relay (' + (server || 'relay') + ', ' + protocol + ')';
+        label = '🔄 TURN (' + (server || 'relay') + ', ' + protocol + ')';
       } else if (candidateType === 'srflx') {
         label = '⚡ STUN (P2P)';
       } else if (candidateType === 'host') {
         label = '🏠 Direct (LAN)';
+      } else if (candidateType === 'prflx') {
+        label = '⚡ P2P (peer-reflexive)';
       } else {
         label = '🔗 ' + candidateType;
       }
 
-      connectionStatusText.textContent = 'Трансляция активна — ' + label;
+      connectionStatusText.textContent = 'Трансляция — ' + label;
       console.log('[WebRTC] Connected via:', candidateType, relayServer, protocol);
     } catch (e) {
       connectionStatusText.textContent = 'Трансляция активна';
-      console.warn('[WebRTC] Could not detect connection type:', e);
     }
   }
 
