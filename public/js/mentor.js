@@ -49,14 +49,9 @@
         credential: 'xtj4wgmXKcfu1Y6ulhg8'
       },
       {
-        urls: [
-          'turn:openrelay.metered.ca:80',
-          'turn:openrelay.metered.ca:443',
-          'turn:openrelay.metered.ca:443?transport=tcp',
-          'turns:openrelay.metered.ca:443'
-        ],
-        username: 'openrelayproject',
-        credential: 'openrelayproject'
+        urls: 'turn:185.170.153.153:3478',
+        username: 'mentorlink',
+        credential: 'mentorlink2026'
       }
     ],
     iceCandidatePoolSize: 5
