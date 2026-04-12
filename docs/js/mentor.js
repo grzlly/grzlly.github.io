@@ -34,6 +34,7 @@
   const mentorId = 'mentor_' + Math.random().toString(36).substr(2, 9);
 
   const iceConfig = {
+    iceTransportPolicy: 'relay',
     iceServers: [
       {
         urls: [
@@ -42,19 +43,8 @@
         ],
         username: 'eeaMmFicg5GYwVhscg2R',
         credential: 'xtj4wgmXKcfu1Y6ulhg8'
-      },
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-      { urls: 'stun:stun2.l.google.com:19302' },
-      { urls: 'stun:stun3.l.google.com:19302' },
-      { urls: 'stun:stun4.l.google.com:19302' },
-      {
-        urls: 'turn:185.170.153.153:3478',
-        username: 'mentorlink',
-        credential: 'mentorlink2026'
       }
-    ],
-    iceCandidatePoolSize: 5
+    ]
   };
 
   // Firebase Init
