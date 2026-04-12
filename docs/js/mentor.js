@@ -37,12 +37,29 @@
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' },
+      { urls: 'stun:stun3.l.google.com:19302' },
+      { urls: 'stun:stun4.l.google.com:19302' },
       {
-        urls: 'turn:wb-stream-turn-1.wb.ru:3478',
+        urls: [
+          'turn:wb-stream-turn-1.wb.ru:3478',
+          'turn:wb-stream-turn-1.wb.ru:3478?transport=tcp'
+        ],
         username: 'eeaMmFicg5GYwVhscg2R',
         credential: 'xtj4wgmXKcfu1Y6ulhg8'
+      },
+      {
+        urls: [
+          'turn:openrelay.metered.ca:80',
+          'turn:openrelay.metered.ca:443',
+          'turn:openrelay.metered.ca:443?transport=tcp',
+          'turns:openrelay.metered.ca:443'
+        ],
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
       }
-    ]
+    ],
+    iceCandidatePoolSize: 5
   };
 
   // Firebase Init
@@ -253,10 +270,11 @@
       console.log('[WebRTC] Connection state:', state);
       if (state === 'connected') {
         if (retryTimeout) clearTimeout(retryTimeout);
-        connectionStatusText.textContent = 'Трансляция активна';
-        topStatusDot.className = 'status-dot online';
         connectAttempts = 0;
+        topStatusDot.className = 'status-dot online';
         if (!timerInterval) startTimer();
+        // Detect connection type
+        detectConnectionType();
       } else if (state === 'disconnected' || state === 'failed') {
         connectionStatusText.textContent = 'Соединение потеряно, переподключение...';
         topStatusDot.className = 'status-dot offline';
@@ -282,6 +300,51 @@
     } catch (e) {
       console.error('[WebRTC] handleOffer error:', e);
       scheduleRetry(3000);
+    }
+  }
+
+  async function detectConnectionType() {
+    if (!peerConnection) return;
+    try {
+      const stats = await peerConnection.getStats();
+      let candidateType = 'unknown';
+      let relayServer = '';
+      let protocol = '';
+
+      stats.forEach(report => {
+        if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+          const localId = report.localCandidateId;
+          const remoteId = report.remoteCandidateId;
+
+          stats.forEach(r => {
+            if (r.id === localId) {
+              candidateType = r.candidateType || candidateType;
+              protocol = r.protocol || '';
+              if (r.relayProtocol) protocol = r.relayProtocol;
+              if (r.url) relayServer = r.url;
+            }
+          });
+        }
+      });
+
+      let label = '';
+      if (candidateType === 'relay') {
+        // Extract server name from TURN url
+        const server = relayServer.replace(/^turns?:/, '').split(':')[0].split('?')[0];
+        label = '🔄 TURN relay (' + (server || 'relay') + ', ' + protocol + ')';
+      } else if (candidateType === 'srflx') {
+        label = '⚡ STUN (P2P)';
+      } else if (candidateType === 'host') {
+        label = '🏠 Direct (LAN)';
+      } else {
+        label = '🔗 ' + candidateType;
+      }
+
+      connectionStatusText.textContent = 'Трансляция активна — ' + label;
+      console.log('[WebRTC] Connected via:', candidateType, relayServer, protocol);
+    } catch (e) {
+      connectionStatusText.textContent = 'Трансляция активна';
+      console.warn('[WebRTC] Could not detect connection type:', e);
     }
   }
 

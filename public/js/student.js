@@ -17,12 +17,29 @@
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' },
+      { urls: 'stun:stun3.l.google.com:19302' },
+      { urls: 'stun:stun4.l.google.com:19302' },
       {
-        urls: 'turn:wb-stream-turn-1.wb.ru:3478',
+        urls: [
+          'turn:wb-stream-turn-1.wb.ru:3478',
+          'turn:wb-stream-turn-1.wb.ru:3478?transport=tcp'
+        ],
         username: 'eeaMmFicg5GYwVhscg2R',
         credential: 'xtj4wgmXKcfu1Y6ulhg8'
+      },
+      {
+        urls: [
+          'turn:openrelay.metered.ca:80',
+          'turn:openrelay.metered.ca:443',
+          'turn:openrelay.metered.ca:443?transport=tcp',
+          'turns:openrelay.metered.ca:443'
+        ],
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
       }
-    ]
+    ],
+    iceCandidatePoolSize: 5
   };
 
   // Firebase Init
