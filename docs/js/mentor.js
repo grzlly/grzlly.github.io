@@ -262,7 +262,12 @@
         if (!timerInterval) startTimer();
         // Detect connection type
         detectConnectionType();
-      } else if (state === 'disconnected' || state === 'failed') {
+      } else if (state === 'disconnected') {
+        connectionStatusText.textContent = 'Соединение нестабильно, ожидание...';
+        topStatusDot.className = 'status-dot offline';
+        // Wait 15s — connection often self-recovers
+        scheduleRetry(15000);
+      } else if (state === 'failed') {
         connectionStatusText.textContent = 'Соединение потеряно, переподключение...';
         topStatusDot.className = 'status-dot offline';
         scheduleRetry(3000);
