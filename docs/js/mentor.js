@@ -137,6 +137,8 @@
         timestamp: firebase.database.ServerValue.TIMESTAMP
       });
       handleStudentDisconnect();
+      connectionStatusText.textContent = 'Ожидание студента...';
+      videoPlaceholder.querySelector('p').textContent = 'Ожидание подключения студента...';
     });
   }
 
