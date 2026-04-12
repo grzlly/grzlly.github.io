@@ -109,7 +109,8 @@
       const msg = snapshot.val();
       snapshot.ref.remove();
 
-      if (msg.studentId !== currentStudentId) return; // ignore other students
+      if (!msg || !msg.type) return;
+      if (!currentStudentId || msg.studentId !== currentStudentId) return;
 
       if (msg.type === 'webrtc-offer') {
         console.log('[WebRTC] Received offer from', msg.studentId);

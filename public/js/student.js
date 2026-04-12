@@ -56,7 +56,9 @@
   const myInboxRef = db.ref('messages/to_student/' + studentId);
   myInboxRef.on('child_added', async (snapshot) => {
     const msg = snapshot.val();
-    snapshot.ref.remove(); // ACK message
+    snapshot.ref.remove();
+
+    if (!msg || !msg.type) return;
 
     if (msg.type === 'mentor-request-view') {
       console.log('[Student] Mentor requested view');
