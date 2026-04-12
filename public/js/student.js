@@ -10,6 +10,7 @@
   let peerConnection = null;
   let localStream = null;
   let shareStarted = false;
+  let pendingCandidates = [];
 
   const iceConfig = {
     iceServers: [
@@ -33,7 +34,7 @@
     messagingSenderId: "566701278681",
     appId: "1:566701278681:web:f7be1fa2d1eab3d9f445c8",
   };
-  
+
   if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
 
@@ -61,30 +62,36 @@
       console.log('[Student] Mentor requested view');
       if (!localStream) {
         try { await startScreenShare(); }
-        catch (e) { 
-          console.error('[Student] Screen share blocked:', e); 
+        catch (e) {
+          console.error('[Student] Screen share blocked:', e);
           sendToMentor('share-error', 'Нет доступа к экрану или пользователь отменил выбор.');
-          return; 
+          return;
         }
       }
       createAndSendOffer();
-    } 
+    }
     else if (msg.type === 'webrtc-answer') {
       if (peerConnection) {
         await peerConnection.setRemoteDescription(new RTCSessionDescription(msg.data));
+        for (const c of pendingCandidates) {
+          await peerConnection.addIceCandidate(new RTCIceCandidate(c)).catch(console.error);
+        }
+        pendingCandidates = [];
       }
-    } 
+    }
     else if (msg.type === 'webrtc-ice-candidate') {
-      if (peerConnection) {
-        await peerConnection.addIceCandidate(new RTCIceCandidate(msg.data));
+      if (peerConnection && peerConnection.remoteDescription) {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(msg.data)).catch(console.error);
+      } else {
+        pendingCandidates.push(msg.data);
       }
-    } 
+    }
     else if (msg.type === 'force-redirect') {
       window.location.href = msg.data;
-    } 
+    }
     else if (msg.type === 'new-hint') {
       receiveHint(msg.data);
-    } 
+    }
     else if (msg.type === 'delete-hint') {
       const card = document.getElementById(msg.data);
       if (card) {
@@ -188,7 +195,7 @@
     if (!hint.id) hint.id = 'hint-' + Date.now();
     showHintCard(hint);
     startTitleScroll(hint.id, hint.text);
-    
+
     // Also push to Android app through Firebase (MentorService will read it)
     db.ref('messages/to_android').push({
       type: 'new-hint',
@@ -251,7 +258,7 @@
     card.querySelector('.hint-close-btn').addEventListener('click', () => {
       // Send ack back to mentor
       sendToMentor('hint-acknowledged', { id: hint.id });
-      
+
       // Send delete signal to Android
       db.ref('messages/to_android').push({ type: 'delete-hint', data: hint.id });
 

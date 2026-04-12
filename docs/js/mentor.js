@@ -19,6 +19,7 @@
   const connectionStatusText = document.getElementById('connectionStatusText');
 
   let peerConnection = null;
+  let pendingCandidates = [];
   let sentHintsCount = 0;
   let timerInterval = null;
   let sessionStartTime = null;
@@ -46,7 +47,7 @@
     messagingSenderId: "566701278681",
     appId: "1:566701278681:web:f7be1fa2d1eab3d9f445c8",
   };
-  
+
   if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
 
@@ -84,22 +85,22 @@
     btnViewStudent.addEventListener('click', () => {
       const selectedId = studentSelect.value;
       if (!selectedId) return;
-      
+
       if (peerConnection) peerConnection.close();
       peerConnection = null;
       if (remoteVideo.srcObject) remoteVideo.srcObject = null;
       remoteVideo.style.display = 'none';
       videoPlaceholder.style.display = 'flex';
-      
+
       currentStudentId = selectedId;
       btnDisconnect.disabled = false;
       topStatusDot.className = 'status-dot offline';
       connectionStatusText.textContent = 'Запрос подключения...';
-      
+
       // Request view
       db.ref('messages/to_student/' + currentStudentId).push({
-          type: 'mentor-request-view',
-          timestamp: firebase.database.ServerValue.TIMESTAMP
+        type: 'mentor-request-view',
+        timestamp: firebase.database.ServerValue.TIMESTAMP
       });
     });
 
@@ -113,10 +114,12 @@
       if (msg.type === 'webrtc-offer') {
         console.log('[WebRTC] Received offer from', msg.studentId);
         await handleOffer(msg.data);
-      } 
+      }
       else if (msg.type === 'webrtc-ice-candidate') {
-        if (peerConnection) {
-          await peerConnection.addIceCandidate(new RTCIceCandidate(msg.data));
+        if (peerConnection && peerConnection.remoteDescription) {
+          await peerConnection.addIceCandidate(new RTCIceCandidate(msg.data)).catch(console.error);
+        } else {
+          pendingCandidates.push(msg.data);
         }
       }
       else if (msg.type === 'share-error') {
@@ -189,13 +192,13 @@
     peerConnection.onicecandidate = (event) => {
       if (event.candidate && currentStudentId) {
         db.ref('messages/to_student/' + currentStudentId).push({
-            type: 'webrtc-ice-candidate',
-            data: {
-              candidate: event.candidate.candidate,
-              sdpMid: event.candidate.sdpMid,
-              sdpMLineIndex: event.candidate.sdpMLineIndex
-            },
-            timestamp: firebase.database.ServerValue.TIMESTAMP
+          type: 'webrtc-ice-candidate',
+          data: {
+            candidate: event.candidate.candidate,
+            sdpMid: event.candidate.sdpMid,
+            sdpMLineIndex: event.candidate.sdpMLineIndex
+          },
+          timestamp: firebase.database.ServerValue.TIMESTAMP
         });
       }
     };
@@ -208,9 +211,13 @@
     };
 
     await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+    for (const c of pendingCandidates) {
+      await peerConnection.addIceCandidate(new RTCIceCandidate(c)).catch(console.error);
+    }
+    pendingCandidates = [];
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
-    
+
     db.ref('messages/to_student/' + currentStudentId).push({
       type: 'webrtc-answer',
       data: { type: answer.type, sdp: answer.sdp },
@@ -224,7 +231,7 @@
     if (!currentStudentId) return;
     const text = hintInput.value.trim();
     if (!text) return;
-    
+
     const hint = { text: text, timestamp: Date.now(), id: 'hint-' + Date.now() };
 
     db.ref('messages/to_student/' + currentStudentId).push({
