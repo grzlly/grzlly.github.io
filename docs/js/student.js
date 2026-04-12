@@ -11,6 +11,7 @@
   let localStream = null;
   let shareStarted = false;
   let pendingCandidates = [];
+  let currentMentorId = null;
 
   const iceConfig = {
     iceServers: [
@@ -62,6 +63,7 @@
 
     if (msg.type === 'mentor-request-view') {
       console.log('[Student] Mentor requested view');
+      currentMentorId = msg.mentorId || null;
       if (!localStream) {
         try { await startScreenShare(); }
         catch (e) {
@@ -73,12 +75,16 @@
       createAndSendOffer();
     }
     else if (msg.type === 'webrtc-answer') {
-      if (peerConnection) {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(msg.data));
-        for (const c of pendingCandidates) {
-          await peerConnection.addIceCandidate(new RTCIceCandidate(c)).catch(console.error);
+      if (peerConnection && peerConnection.signalingState === 'have-local-offer') {
+        try {
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(msg.data));
+          for (const c of pendingCandidates) {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(c)).catch(console.error);
+          }
+          pendingCandidates = [];
+        } catch (e) {
+          console.warn('[Student] Stale answer ignored:', e.message);
         }
-        pendingCandidates = [];
       }
     }
     else if (msg.type === 'webrtc-ice-candidate') {
@@ -116,7 +122,10 @@
   });
 
   function sendToMentor(type, data) {
-    db.ref('messages/to_mentor').push({
+    const path = currentMentorId
+      ? 'messages/to_mentor/' + currentMentorId
+      : 'messages/to_mentor';
+    db.ref(path).push({
       studentId: studentId,
       type: type,
       data: data,
