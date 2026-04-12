@@ -99,30 +99,49 @@
     });
 
     // Watch for students — auto-connect to first one
+    let disconnectGrace = null;
     db.ref('students').on('value', (snapshot) => {
       const list = snapshot.val() || {};
       const onlineStudents = Object.keys(list).filter(id => list[id].isOnline);
 
       if (onlineStudents.length > 0) {
+        // Cancel any pending disconnect
+        if (disconnectGrace) { clearTimeout(disconnectGrace); disconnectGrace = null; }
+
         const studentId = onlineStudents[0];
 
-        // Already connected to this student and stream is live
-        if (currentStudentId === studentId && peerConnection &&
-            peerConnection.connectionState === 'connected') {
-          return;
+        // Already working with this student — don't interrupt
+        if (currentStudentId === studentId && peerConnection) {
+          const state = peerConnection.connectionState;
+          if (state === 'connected' || state === 'connecting' || state === 'new') {
+            return;
+          }
         }
 
-        // New student or need to reconnect
+        // New student or need fresh connection
         if (currentStudentId !== studentId) {
-          currentStudentId = studentId;
           connectAttempts = 0;
         }
-
+        currentStudentId = studentId;
         requestView();
       } else {
-        if (currentStudentId) handleStudentDisconnect();
-        connectionStatusText.textContent = 'Ожидание студента...';
-        videoPlaceholder.querySelector('p').textContent = 'Студент не в сети...';
+        // Grace period — wait 3s before declaring student offline
+        // (handles Firebase presence flicker)
+        if (!disconnectGrace && currentStudentId) {
+          disconnectGrace = setTimeout(() => {
+            disconnectGrace = null;
+            // Re-check if student is still offline
+            db.ref('students').once('value', (snap) => {
+              const l = snap.val() || {};
+              const still = Object.keys(l).filter(id => l[id].isOnline);
+              if (still.length === 0) {
+                handleStudentDisconnect();
+                connectionStatusText.textContent = 'Ожидание студента...';
+                videoPlaceholder.querySelector('p').textContent = 'Студент не в сети...';
+              }
+            });
+          }, 3000);
+        }
       }
     });
 
