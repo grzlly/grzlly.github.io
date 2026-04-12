@@ -30,6 +30,7 @@
   let currentStudentId = null;
   let connectAttempts = 0;
   let retryTimeout = null;
+  let isConnecting = false;
   const mentorId = 'mentor_' + Math.random().toString(36).substr(2, 9);
 
   const iceConfig = {
@@ -110,20 +111,20 @@
 
         const studentId = onlineStudents[0];
 
-        // Already working with this student — don't interrupt
-        if (currentStudentId === studentId && peerConnection) {
-          const state = peerConnection.connectionState;
-          if (state === 'connected' || state === 'connecting' || state === 'new') {
-            return;
-          }
+        // Already connecting or connected — don't interrupt
+        if (currentStudentId === studentId && (isConnecting || 
+            (peerConnection && (peerConnection.connectionState === 'connected' || 
+             peerConnection.connectionState === 'connecting')))) {
+          return;
         }
 
         // New student or need fresh connection
         if (currentStudentId !== studentId) {
           connectAttempts = 0;
+          isConnecting = false;
         }
         currentStudentId = studentId;
-        requestView();
+        if (!isConnecting) requestView();
       } else {
         // Grace period — wait 3s before declaring student offline
         // (handles Firebase presence flicker)
@@ -163,6 +164,7 @@
 
   function requestView() {
     if (!currentStudentId) return;
+    isConnecting = true;
 
     connectAttempts++;
     console.log('[Mentor] Requesting view from', currentStudentId, '(attempt ' + connectAttempts + ')');
@@ -207,6 +209,7 @@
     btnDisconnect.disabled = true;
     currentStudentId = null;
     connectAttempts = 0;
+    isConnecting = false;
     if (peerConnection) { peerConnection.close(); peerConnection = null; }
     if (remoteVideo.srcObject) remoteVideo.srcObject = null;
     remoteVideo.style.display = 'none';
@@ -217,6 +220,7 @@
   // === WebRTC ===
   async function handleOffer(offer) {
     if (retryTimeout) clearTimeout(retryTimeout);
+    isConnecting = false;
 
     peerConnection = new RTCPeerConnection(iceConfig);
 

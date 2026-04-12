@@ -62,6 +62,14 @@
     if (!msg || !msg.type) return;
 
     if (msg.type === 'mentor-request-view') {
+      // Debounce: ignore rapid repeated requests (within 5 sec)
+      const now = Date.now();
+      if (window._lastRequestTime && (now - window._lastRequestTime) < 5000) {
+        console.log('[Student] Ignoring duplicate request (debounce)');
+        return;
+      }
+      window._lastRequestTime = now;
+
       console.log('[Student] Mentor requested view');
       currentMentorId = msg.mentorId || null;
       if (!localStream) {
