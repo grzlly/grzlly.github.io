@@ -20,7 +20,9 @@
       {
         urls: [
           'turn:82.22.174.112:3478?transport=udp',
-          'turn:82.22.174.112:3478?transport=tcp'
+          'turn:82.22.174.112:3478?transport=tcp',
+          'turn:172.29.172.1:3478?transport=udp',
+          'turn:172.20.0.1:3478?transport=udp'
         ],
         username: 'mentorlink',
         credential: 'mentorlink2026'
