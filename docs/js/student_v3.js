@@ -14,14 +14,10 @@
   let currentMentorId = null;
 
   const iceConfig = {
+    iceTransportPolicy: 'relay',
     iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
       {
-        urls: [
-          'turn:172.29.172.1:3478?transport=udp',
-          'turn:172.20.0.1:3478?transport=udp'
-        ],
+        urls: 'turn:82.22.174.112:3478?transport=tcp',
         username: 'mentorlink',
         credential: 'mentorlink2026'
       }
