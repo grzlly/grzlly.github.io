@@ -34,12 +34,17 @@
   const mentorId = 'mentor_' + Math.random().toString(36).substr(2, 9);
 
   const iceConfig = {
-    iceTransportPolicy: 'relay',
     iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
       {
-        urls: 'turn:82.22.174.112:3478?transport=tcp',
-        username: 'mentorlink',
-        credential: 'mentorlink2026'
+        urls: [
+          'turn:openrelay.metered.ca:80',
+          'turn:openrelay.metered.ca:443',
+          'turn:openrelay.metered.ca:443?transport=tcp'
+        ],
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
       }
     ],
     iceCandidatePoolSize: 5
