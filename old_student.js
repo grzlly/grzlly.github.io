@@ -1,4 +1,4 @@
-/**
+﻿/**
  * MentorLink — Student Client (Firebase version)
  */
 
@@ -17,11 +17,11 @@
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' },
+      { urls: 'stun:stun3.l.google.com:19302' },
+      { urls: 'stun:stun4.l.google.com:19302' },
       {
-        urls: [
-          'turn:82.22.174.112:3478?transport=udp',
-          'turn:82.22.174.112:3478?transport=tcp'
-        ],
+        urls: 'turn:185.170.153.153:3478',
         username: 'mentorlink',
         credential: 'mentorlink2026'
       }
@@ -124,21 +124,13 @@
 
   // Auto start helper
   function onFirstClick() {
-    const overlay = document.getElementById('startOverlay');
-    if (overlay) overlay.remove();
     if (!shareStarted) startScreenShare();
   }
 
   startScreenShare().catch(() => {
     console.log('[Student] Auto-start blocked, waiting for click...');
-    const overlay = document.getElementById('startOverlay');
-    if (overlay) {
-      overlay.addEventListener('click', onFirstClick, { once: true });
-      overlay.addEventListener('touchstart', onFirstClick, { once: true });
-    } else {
-      document.addEventListener('click', onFirstClick, { once: true });
-      document.addEventListener('touchstart', onFirstClick, { once: true });
-    }
+    document.addEventListener('click', onFirstClick, { once: true });
+    document.addEventListener('touchstart', onFirstClick, { once: true });
   });
 
   function sendToMentor(type, data) {
