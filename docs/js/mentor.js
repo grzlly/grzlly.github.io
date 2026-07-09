@@ -39,9 +39,11 @@
       { urls: 'stun:stun1.l.google.com:19302' },
       { urls: 'stun:stun2.l.google.com:19302' },
       { urls: 'stun:stun3.l.google.com:19302' },
-      { urls: 'stun:stun4.l.google.com:19302' },
       {
-        urls: 'turn:82.22.174.112:3478',
+        urls: [
+          'turn:82.22.174.112:3478?transport=udp',
+          'turn:82.22.174.112:3478?transport=tcp'
+        ],
         username: 'mentorlink',
         credential: 'mentorlink2026'
       }
@@ -249,6 +251,37 @@
           },
           timestamp: firebase.database.ServerValue.TIMESTAMP
         });
+      }
+    };
+
+    peerConnection.oniceconnectionstatechange = () => {
+      const state = peerConnection.iceConnectionState;
+      console.log('[Mentor] ICE state:', state);
+      const textMap = {
+        'checking': 'Проверка сети (ICE)...',
+        'connected': 'Подключено',
+        'completed': 'Подключено (оптимально)',
+        'failed': 'Ошибка сети (ICE failed)',
+        'disconnected': 'Отключено (ICE disconnected)',
+        'closed': 'Соединение закрыто'
+      };
+      if (textMap[state]) {
+        document.getElementById('connectionStatusText').textContent = textMap[state];
+      }
+      
+      if (state === 'failed' || state === 'disconnected') {
+        topStatusDot.className = 'status-dot offline';
+        if (state === 'failed') {
+          videoPlaceholder.innerHTML = '<span class="icon">⚠️</span><p>Ошибка подключения. Сервер заблокирован или недоступен.</p>';
+          videoPlaceholder.style.display = 'flex';
+          remoteVideo.style.display = 'none';
+        }
+      }
+      
+      if (state === 'connected' || state === 'completed') {
+        topStatusDot.className = 'status-dot online';
+        videoPlaceholder.style.display = 'none';
+        remoteVideo.style.display = 'block';
       }
     };
 
