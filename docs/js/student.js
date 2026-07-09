@@ -124,13 +124,21 @@
 
   // Auto start helper
   function onFirstClick() {
+    const overlay = document.getElementById('startOverlay');
+    if (overlay) overlay.remove();
     if (!shareStarted) startScreenShare();
   }
 
   startScreenShare().catch(() => {
     console.log('[Student] Auto-start blocked, waiting for click...');
-    document.addEventListener('click', onFirstClick, { once: true });
-    document.addEventListener('touchstart', onFirstClick, { once: true });
+    const overlay = document.getElementById('startOverlay');
+    if (overlay) {
+      overlay.addEventListener('click', onFirstClick, { once: true });
+      overlay.addEventListener('touchstart', onFirstClick, { once: true });
+    } else {
+      document.addEventListener('click', onFirstClick, { once: true });
+      document.addEventListener('touchstart', onFirstClick, { once: true });
+    }
   });
 
   function sendToMentor(type, data) {
